@@ -1,16 +1,17 @@
 use clap::Parser;
-use colored::Colorize;
-use std::{ffi::OsString, fmt, io, path::PathBuf};
+use wildcard_match::Matcher;
+use std::{fmt, io, path::PathBuf};
 
-use crate::wildcard_match::log_occurances;
+use crate::threadpool::*;
 
+mod threadpool;
 mod wildcard_match;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Args {
     wildcard: String,
-    filename: Vec<String>,
+    filename: Vec<PathBuf>,
 }
 
 impl fmt::Display for Args {
@@ -24,12 +25,13 @@ fn main() -> io::Result<()> {
 
     let file_names = args.filename;
 
-    for file_name in file_names {
-        match log_occurances(&PathBuf::from(OsString::from(&file_name)), &args.wildcard) {
-            Ok(_) => (),
-            Err(err) => println!("{}: \n{}", file_name.red(), err),
-        }
-    }
+    
+    let matcher = Matcher::build(file_names, args.wildcard);
+
+    match matcher.execute() {
+        Ok(_) => (),
+        Err(err) => eprintln!("{}", err),
+    };
 
     Ok(())
 }
