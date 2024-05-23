@@ -1,12 +1,69 @@
 use colored::*;
 use wildcard::*;
+use core::fmt;
 use std::{
-    fs::{self, File}, path::{Path, PathBuf}, sync::{mpsc::{self, Sender}, Arc, Mutex},
+    fs::{self, File}, io::{self, BufRead}, path::{Path, PathBuf}, sync::{mpsc::{self, Sender}, Arc, Mutex}
 };
 
 extern crate wildcard;
 
 use crate::ThreadPool;
+
+pub struct MatchedLine {
+    pub line: Vec<String>,
+    pub line_number: usize,
+    pub word_number: usize,
+}
+
+impl MatchedLine {
+    pub fn new(line: Vec<String>, line_number: usize, word_number: usize) -> MatchedLine {
+        MatchedLine {
+            line,
+            line_number,
+            word_number,
+        }
+    }
+}
+
+impl fmt::Display for MatchedLine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let _ = write!(f, "{}:", self.line_number.to_string().blue(),);
+
+        for (idx, word) in self.line.iter().enumerate() {
+            if idx == self.word_number {
+                let _ = write!(f, "{} ", word.red());
+            } else {
+                let _ = write!(f, "{} ", word);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+
+pub fn search_in_file(file: File, wildcard: &str) -> Vec<MatchedLine> {
+    let mut result = Vec::new();
+    let lines = io::BufReader::new(file).lines();
+
+    for (line_idx, string) in lines.enumerate() {
+        if let Ok(line) = string {
+            let words = match parse(&line) {
+                Some(w) => w,
+                None => continue,
+            };
+
+            for (word_idx, word) in words.iter().enumerate() {
+                if is_match(word.trim(), wildcard) {
+                    result.push(MatchedLine::new(words.clone(), line_idx, word_idx));
+                    break;
+                }
+            }
+        }
+    }
+
+    result
+}
 
 pub struct Matcher {
     pub threadpool: ThreadPool,
