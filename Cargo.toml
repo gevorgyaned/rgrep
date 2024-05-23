@@ -1,3 +1,4 @@
+workspace = { members = ["wildcard"] }
 [package]
 name = "mini-grep"
 version = "0.1.0"
@@ -8,6 +9,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
+wildcard = {path = "./wildcard"}
 
 [profile.dev]
 opt-level = 3
