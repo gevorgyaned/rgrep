@@ -1,7 +1,7 @@
 use colored::*;
 use core::fmt;
 use std::{
-    fs::{self, File}, io::{self, BufRead}, path::{Path, PathBuf}, sync::{mpsc, Arc, Mutex},
+    fs::{self, File}, io::{self, BufRead}, path::{Path, PathBuf}, sync::{mpsc::{self, Sender}, Arc, Mutex},
 };
 
 use crate::ThreadPool;
@@ -10,14 +10,20 @@ pub struct Matcher {
     pub threadpool: ThreadPool,
     pub wildcard: String,
     pub filenames: Vec<PathBuf>,
+    pub sender: Mutex<mpsc::Sender<(Vec<MatchedLine>, PathBuf)>>,
+    pub receiver: mpsc::Receiver<(Vec<MatchedLine>, PathBuf)>
 }
 
 impl Matcher {
     pub fn build(filenames: Vec<PathBuf>, wildcard: String) -> Matcher {
+        let (sender, receiver) = mpsc::channel();
+
         Matcher {
             threadpool: ThreadPool::new(8),
             filenames,
             wildcard,
+            sender: Mutex::new(sender),
+            receiver,
         }
     }
 
@@ -26,7 +32,7 @@ impl Matcher {
             println!("no occurances is found");
             return;
         }
-    
+
         println!("{}: ", file_name.display().to_string().green());
         matches
             .iter()
@@ -34,66 +40,60 @@ impl Matcher {
     }
 
     pub fn execute(&self) -> Result<(), &'static str> {
-        let (result_sender, result_receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
 
-        let result_sender = Arc::new(Mutex::new(result_sender));
+        let sender = Arc::new(Mutex::new(sender));
 
         for filename in &self.filenames {
             if filename.is_dir() {
-                let entries = match fs::read_dir(filename) {
-                    Ok(entries) => entries,
-                    Err(_) => {
-                        eprintln!("Error reading directory: {}", filename.display());
-                        continue;
-                    }
-                };
-
-                for entry in entries {
-                    let entry = match entry {
-                        Ok(entry) => entry.path(),
-                        Err(_) => continue,
-                    };
-
-                    let result_sender = Arc::clone(&result_sender);
-                    let wildcard = self.wildcard.clone();
-
-                    self.threadpool.execute(move || {
-                        if let Ok(file) = File::open(&entry) {    
-                            let matches = search_in_file(file, wildcard.as_str());
-                            
-                            result_sender.lock().unwrap().send(matches).unwrap();
-                        }
-                    });
-                }
+                let sender = Arc::clone(&sender);
+                self.handle_directory(filename.clone(), &sender);
             } else if filename.is_file() {
-                let filename = filename.clone();
-
-                let result_sender = Arc::clone(&result_sender);
-                let wildcard = self.wildcard.clone();
-
-                self.threadpool.execute(move || {
-                    if let Ok(file) = File::open(filename) {
-                        let result_sender = Arc::clone(&result_sender);
-
-                        let matches = search_in_file(file, wildcard.as_str());
-                        
-                        result_sender.lock().unwrap().send(matches).unwrap();
-                    }
-                });
+                let sender = Arc::clone(&sender);
+                self.handle_regular_file(filename.clone(), &sender);
             }
         }
 
-        drop(result_sender);
+        drop(sender);
 
-        let filename = Path::new("hello").to_path_buf();
-
-        for matched_line in result_receiver {
-            self.log_occurances(&filename, matched_line);
+        for (matched_line, file_name) in receiver {
+            self.log_occurances(&file_name, matched_line);
         }
         
         Ok(())
     }
 
+    fn handle_directory(&self, file_name: PathBuf, sender: &Arc<Mutex<Sender<(Vec<MatchedLine>, PathBuf)>>>) {
+        let entries = match fs::read_dir(file_name) {
+            Ok(e) => e,
+            Err(_) => todo!(),
+        };
+
+        for dir_entry  in entries {
+            if let Ok(dir_entry) = dir_entry {
+                let dir_entry = dir_entry.path();
+
+                if dir_entry.is_dir() {
+                    self.handle_directory(dir_entry, sender);
+                } else if dir_entry.is_file() {
+                    self.handle_regular_file(dir_entry, sender);
+                }
+            }
+        }
+    }
+
+    fn handle_regular_file(&self, filename: PathBuf, sender: &Arc<Mutex<Sender<(Vec<MatchedLine>, PathBuf)>>>) {
+        let sender = Arc::clone(sender);
+        let wildcard = self.wildcard.clone();
+
+        self.threadpool.execute(move || {
+            let file = File::open(filename.clone()).unwrap();
+    
+            let matches = search_in_file(file, wildcard.clone().as_str());
+    
+            sender.lock().unwrap().send((matches, filename)).unwrap();
+        });
+    }
 }
 
 pub fn search_in_file(file: File, wildcard: &str) -> Vec<MatchedLine> {
