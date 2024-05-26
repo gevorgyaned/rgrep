@@ -34,13 +34,22 @@ pub fn is_match(str: &str, pattern: &str) -> bool {
 
 pub fn parse(input: &str) -> Option<Vec<String>> {
     if input.is_empty() {
-        return None;
+        None
+    } else {
+        Some(
+            input
+                .split_ascii_whitespace()
+                .map(|s| s.to_string())
+                .collect(),
+        )
     }
+}
 
-    Some(
-        input
-            .split_ascii_whitespace()
-            .map(|s| s.to_string())
-            .collect(),
-    )
+pub fn kmp(text: &str, pattern: &str) -> Option<Vec<usize>> {
+    // preprocessing
+    let pre: Vec<i32> = Vec::with_capacity(pattern.len());
+
+
+
+    Some(vec![])   
 }

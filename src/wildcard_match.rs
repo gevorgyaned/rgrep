@@ -2,8 +2,9 @@ use colored::*;
 use wildcard::*;
 use core::fmt;
 use std::{
-    fs::{self, File}, io::{self, BufRead}, path::{Path, PathBuf}, sync::{mpsc::{self, Sender}, Arc, Mutex}
+    fs::{self, File}, io::{self, BufRead, BufWriter}, path::{Path, PathBuf}, sync::{mpsc::{self, Sender}, Arc, Mutex}
 };
+use std::io::Write;
 
 extern crate wildcard;
 
@@ -27,14 +28,14 @@ impl MatchedLine {
 
 impl fmt::Display for MatchedLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let _ = write!(f, "{}:", self.line_number.to_string().blue(),);
+        let _ = write!(f, "{}:", self.line_number.to_string().blue());
 
         for (idx, word) in self.line.iter().enumerate() {
-            if idx == self.word_number {
-                let _ = write!(f, "{} ", word.red());
-            } else {
-                let _ = write!(f, "{} ", word);
-            }
+            write!(f, "{} ", if idx == self.word_number { 
+                word.green() 
+            } else { 
+                word.white() 
+            }).unwrap();
         }
 
         Ok(())
@@ -69,33 +70,27 @@ pub struct Matcher {
     pub threadpool: ThreadPool,
     pub wildcard: String,
     pub filenames: Vec<PathBuf>,
-    pub sender: Mutex<mpsc::Sender<(Vec<MatchedLine>, PathBuf)>>,
-    pub receiver: mpsc::Receiver<(Vec<MatchedLine>, PathBuf)>
 }
 
 impl Matcher {
     pub fn build(filenames: Vec<PathBuf>, wildcard: String) -> Matcher {
-        let (sender, receiver) = mpsc::channel();
-
         Matcher {
             threadpool: ThreadPool::new(8),
             filenames,
             wildcard,
-            sender: Mutex::new(sender),
-            receiver,
         }
     }
 
-    pub fn log_occurances(&self, file_name: &Path, matches: Vec<MatchedLine>) {
+    pub fn log_occurances(&self, file_name: &Path, matches: Vec<MatchedLine>, buffer: &mut BufWriter<io::StdoutLock<'static>>) {
         if matches.is_empty() {
-            println!("no occurances is found");
+            writeln!(buffer, "no occurrences found").unwrap();
             return;
         }
 
-        println!("{}: ", file_name.display().to_string().green());
-        matches
-            .iter()
-            .for_each(|match_entry| println!("{}", match_entry));
+        writeln!(buffer, "{}: ", file_name.display().to_string().green()).unwrap();
+        for match_entry in &matches {
+            writeln!(buffer, "{}", match_entry).unwrap();
+        }
     }
 
     pub fn execute(&self) -> Result<(), &'static str> {
@@ -115,9 +110,14 @@ impl Matcher {
 
         drop(sender);
 
+        let stdout = io::stdout().lock();
+        let mut buffer = BufWriter::new(stdout);
+
         for (matched_line, file_name) in receiver {
-            self.log_occurances(&file_name, matched_line);
+            self.log_occurances(&file_name, matched_line, &mut buffer);
         }
+
+        buffer.flush().unwrap();
         
         Ok(())
     }

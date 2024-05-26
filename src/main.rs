@@ -24,7 +24,6 @@ fn main() -> io::Result<()> {
     let args = Args::parse();
 
     let file_names = args.filename;
-
     
     let matcher = Matcher::build(file_names, args.wildcard);
 
