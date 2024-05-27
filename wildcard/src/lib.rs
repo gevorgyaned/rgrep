@@ -8,17 +8,17 @@ pub enum WildcardTok {
     SingleAny,
 	Digit,
     Symbol(char),
-    LowerSymbol(Option<u32>), 
-    HigherSymbol(Option<u32>),
+    LowerSymbol(Option<usize>), 
+    HigherSymbol(Option<usize>),
 	SymbolSet(HashSet<char>),
 }
 
-const SPECIAL_SYMBOLS: [char; 8] = ['*', '?', '\\', '[', ']', '#', '<', '>'];
+const SPECIAL_SYMBOLS: [char; 9] = ['*', '?', '\\', '/', '[', ']', '#', '<', '>'];
 
 const LOWER: &str = "lowcase";
 const HIGHER: &str = "upcase";
 
-fn match_wild(pattern: &str, num: u32) -> Option<WildcardTok> {
+fn match_wild(pattern: &str, num: usize) -> Option<WildcardTok> {
     match pattern.trim() {
         HIGHER => Some(WildcardTok::HigherSymbol(
             if num == 0 { None }
@@ -49,13 +49,9 @@ fn handle_set(set: &str) -> Option<WildcardTok> {
 }
 
 pub fn extract_from_brackets(pattern: &str) -> Option<WildcardTok> {
-	println!("{}", pattern);
 	if pattern.is_empty() || !pattern.starts_with('[') || !pattern.ends_with(']') {
-		println!("dbg");
 		return None;
 	}
-
-	println!("{}", pattern);
 
     let pattern = &pattern[1..pattern.len() - 1];
 
@@ -66,7 +62,7 @@ pub fn extract_from_brackets(pattern: &str) -> Option<WildcardTok> {
 			return None;
 		}
 
-		let number = pattern[0].parse::<u32>().unwrap_or(0);
+		let number = pattern[0].parse::<usize>().unwrap_or(0);
 		let keyword = pattern[1];
 
         match_wild(keyword, number)
@@ -102,8 +98,6 @@ pub fn compile_wildcard(pattern: &str) -> Result<Vec<WildcardTok>, String> {
                     Some(i) => i,
                     None => return Err(String::from("missing closing bracket")),
                 };
-
-				println!("{} {}", pass_val, idx);
 				
 				res.push(match extract_from_brackets(&pattern[idx..idx + pass_val + 1]) {
                     Some(w) => w,
@@ -135,38 +129,78 @@ pub fn compile_wildcard(pattern: &str) -> Result<Vec<WildcardTok>, String> {
     Ok(res)
 }
 
-pub fn is_match(str: &str, pattern: &str) -> bool {
-    let (str_len, pat_len) = (str.len(), pattern.len());
+pub fn is_match(s: &str, pattern: &str) -> bool {
+    let tokens = match compile_wildcard(pattern) {
+        Ok(tokens) => tokens,
+        Err(_) => return false,
+    };
 
-    let mut i: usize = 0;
-    let mut j: usize = 0;
-    let mut m: usize = 0;
-    let mut start_idx: i32 = -1;
+    let s_chars: Vec<char> = s.chars().collect();
+    let n = s_chars.len();
+    let m = tokens.len();
 
-    while i < str_len {
-        if j < pat_len
-            && (pattern.chars().nth(j) == Some('?') || pattern.chars().nth(j) == str.chars().nth(i))
-        {
-            j += 1;
-            i += 1;
-        } else if j < pat_len && pattern.chars().nth(j) == Some('*') {
-            start_idx = j as i32;
-            m = i;
-            j += 1;
-        } else if start_idx != -1 {
-            j = start_idx as usize + 1;
-            m += 1;
-            i = m;
-        } else {
-            return false;
+    let mut dp = vec![vec![false; m + 1]; n + 1];
+    dp[0][0] = true;
+
+    for j in 1..=m {
+        if let WildcardTok::MultipleAny = tokens[j - 1] {
+            dp[0][j] = dp[0][j - 1];
         }
     }
 
-    while j < pat_len && pattern.chars().nth(j) == Some('*') {
-        j += 1;
+    for i in 1..=n {
+        for j in 1..=m {
+            match &tokens[j - 1] {
+                WildcardTok::SingleAny => {
+                    dp[i][j] = dp[i - 1][j - 1];
+                }
+                WildcardTok::MultipleAny => {
+                    dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
+                }
+                WildcardTok::Symbol(c) => {
+                    dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1] == *c;
+                }
+                WildcardTok::Digit => {
+                    dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1].is_digit(10);
+                }
+                WildcardTok::SymbolSet(set) => {
+                    dp[i][j] = dp[i - 1][j - 1] && set.contains(&s_chars[i - 1]);
+                }
+                WildcardTok::LowerSymbol(None) => {
+                    dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1].is_lowercase();
+                }
+                WildcardTok::HigherSymbol(None) => {
+                    dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1].is_uppercase();
+                }
+                WildcardTok::LowerSymbol(Some(n)) => {
+                    dp[i][j] = false;
+                    if s_chars[i - 1].is_lowercase() {
+                        let mut count: usize = 0;
+                        while count < *n && i > count && s_chars[i - 1 - count].is_lowercase() {
+                            count += 1;
+                        }
+                        if count == *n {
+                            dp[i][j] = dp[i - count][j - 1];
+                        }
+                    }
+                }
+                WildcardTok::HigherSymbol(Some(n)) => {
+                    dp[i][j] = false;
+                    if s_chars[i - 1].is_uppercase() {
+                        let mut count: usize = 0;
+                        while count < *n && i > count && s_chars[i - 1 - count].is_uppercase() {
+                            count += 1;
+                        }
+                        if count == *n {
+                            dp[i][j] = dp[i - count][j - 1];
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    j == pat_len
+    dp[n][m]
 }
 
 pub fn parse(input: &str) -> Option<Vec<String>> {
@@ -181,46 +215,3 @@ pub fn parse(input: &str) -> Option<Vec<String>> {
         )
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_valid_patterns() {
-        assert_eq!(extract_from_brackets("[123|upcase]"), Some(WildcardTok::HigherSymbol(Some(123))));
-        assert_eq!(extract_from_brackets("[456|lowcase]"), Some(WildcardTok::LowerSymbol(Some(456))));
-        assert_eq!(extract_from_brackets("[upcase]"), Some(WildcardTok::HigherSymbol(None)));
-        assert_eq!(extract_from_brackets("[lowcase]"), Some(WildcardTok::LowerSymbol(None)));
-    }
-
-    #[test]
-    fn test_invalid_patterns() {
-        assert_eq!(extract_from_brackets("[]"), None);
-        assert_eq!(extract_from_brackets("[123|UNKNOWN]"), None);
-        assert_eq!(extract_from_brackets("123|lowcase]"), None);
-        assert_eq!(extract_from_brackets("[lowcase"), None);
-        assert_eq!(extract_from_brackets("[lowcase123]"), None);
-        assert_eq!(extract_from_brackets("[123hhjke]"), None);
-    }
-
-    #[test]
-    fn test_set_pattern() {
-		let mut hash_set = HashSet::new();
-		hash_set.insert('a');
-		hash_set.insert('b');
-		hash_set.insert('c');
-		hash_set.insert('d');
-		hash_set.insert('e');
-        assert_eq!(handle_set("<abcde>"), Some(WildcardTok::SymbolSet(hash_set)));
-    }
-
-	#[test]
-	fn test_wildcard_compile() {
-		assert_eq!(compile_wildcard("a[12|upcase]").unwrap(), vec![WildcardTok::Symbol('a'), WildcardTok::HigherSymbol(Some(12))]);
-		assert_eq!(compile_wildcard("a[upcase]").unwrap(), vec![WildcardTok::Symbol('a'), WildcardTok::HigherSymbol(None)]);
-		assert_eq!(compile_wildcard("a[upcase]#").unwrap(), vec![WildcardTok::Symbol('a'), WildcardTok::HigherSymbol(None), WildcardTok::Digit]);
-		assert_eq!(compile_wildcard("*??a[lowcase]#").unwrap(), vec![WildcardTok::MultipleAny, WildcardTok::SingleAny,WildcardTok::SingleAny, WildcardTok::Symbol('a'), WildcardTok::LowerSymbol(None), WildcardTok::Digit]);
-	}
-}
-

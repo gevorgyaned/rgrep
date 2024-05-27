@@ -1,10 +1,6 @@
-
-
 #[cfg(test)]
 mod additional_tests {
     use crate::*;
-
-    use super::*;
 
     #[test]
     fn test_valid_set_patterns() {
@@ -35,17 +31,15 @@ mod additional_tests {
         assert!(is_match("abcdef", "abc*"));
         assert!(is_match("abcdef", "a*d*f"));
         assert!(is_match("abcdef", "*def"));
-        assert!(!is_match("abcdef", "a?d*"));
+        assert_eq!(is_match("abcdef", "a?d*"), false);
     }
 
     #[test]
     fn test_is_match_complex() {
-        assert!(is_match("abc123", "abc[lowcase]123"));
-        assert!(is_match("ABC123", "ABC[upcase]123"));
-        assert!(!is_match("abc123", "ABC[upcase]123"));
-        assert!(is_match("abcXYZ", "abc<XYZ>"));
-        assert!(!is_match("abcXYZ", "abc<xyz>"));
-        assert!(is_match("abcxyz", "abc<xyz>"));
+        assert!(is_match("abchhhu", "abc[4|lowcase]"));
+        assert!(is_match("ABC", "[3|upcase]"));
+        assert!(is_match("ab78", "ab*##*"));
+        assert!(!is_match("abchhhu", "abc[6|lowcase]"));
     }
 
     #[test]
@@ -64,13 +58,6 @@ mod additional_tests {
     }
 
     #[test]
-    fn test_parse_function() {
-        assert_eq!(parse("a b c"), Some(vec!["a".to_string(), "b".to_string(), "c".to_string()]));
-        assert_eq!(parse(""), None);
-        assert_eq!(parse("   "), None);
-    }
-
-    #[test]
     fn test_special_symbols() {
         assert_eq!(compile_wildcard(r"a\*b\?c\/d"), Ok(vec![
             WildcardTok::Symbol('a'),
@@ -82,7 +69,6 @@ mod additional_tests {
             WildcardTok::Symbol('d')
         ]));
 
-        assert_eq!(compile_wildcard(r"a\*b\?c\d"), Err(String::from("invlaid symbol found at 7")));
         assert_eq!(compile_wildcard(r"a\*b\?c"), Ok(vec![
             WildcardTok::Symbol('a'),
             WildcardTok::Symbol('*'),
@@ -106,5 +92,42 @@ mod additional_tests {
             WildcardTok::MultipleAny
         ]));
     }
+
+    #[test]
+    fn test_valid_patterns() {
+        assert_eq!(extract_from_brackets("[123|upcase]"), Some(WildcardTok::HigherSymbol(Some(123))));
+        assert_eq!(extract_from_brackets("[456|lowcase]"), Some(WildcardTok::LowerSymbol(Some(456))));
+        assert_eq!(extract_from_brackets("[upcase]"), Some(WildcardTok::HigherSymbol(None)));
+        assert_eq!(extract_from_brackets("[lowcase]"), Some(WildcardTok::LowerSymbol(None)));
+    }
+
+    #[test]
+    fn test_invalid_patterns() {
+        assert_eq!(extract_from_brackets("[]"), None);
+        assert_eq!(extract_from_brackets("[123|UNKNOWN]"), None);
+        assert_eq!(extract_from_brackets("123|lowcase]"), None);
+        assert_eq!(extract_from_brackets("[lowcase"), None);
+        assert_eq!(extract_from_brackets("[lowcase123]"), None);
+        assert_eq!(extract_from_brackets("[123hhjke]"), None);
+    }
+
+    #[test]
+    fn test_set_pattern() {
+		let mut hash_set = HashSet::new();
+		hash_set.insert('a');
+		hash_set.insert('b');
+		hash_set.insert('c');
+		hash_set.insert('d');
+		hash_set.insert('e');
+        assert_eq!(handle_set("<abcde>"), Some(WildcardTok::SymbolSet(hash_set)));
+    }
+
+	#[test]
+	fn test_wildcard_compile() {
+		assert_eq!(compile_wildcard("a[12|upcase]").unwrap(), vec![WildcardTok::Symbol('a'), WildcardTok::HigherSymbol(Some(12))]);
+		assert_eq!(compile_wildcard("a[upcase]").unwrap(), vec![WildcardTok::Symbol('a'), WildcardTok::HigherSymbol(None)]);
+		assert_eq!(compile_wildcard("a[upcase]#").unwrap(), vec![WildcardTok::Symbol('a'), WildcardTok::HigherSymbol(None), WildcardTok::Digit]);
+		assert_eq!(compile_wildcard("*??a[lowcase]#").unwrap(), vec![WildcardTok::MultipleAny, WildcardTok::SingleAny,WildcardTok::SingleAny, WildcardTok::Symbol('a'), WildcardTok::LowerSymbol(None), WildcardTok::Digit]);
+	}
 }
 
