@@ -6,11 +6,11 @@ use std::collections::HashSet;
 pub enum WildcardTok {
     MultipleAny,
     SingleAny,
-	Digit,
+    Digit,
     Symbol(char),
     LowerSymbol(Option<usize>), 
     HigherSymbol(Option<usize>),
-	SymbolSet(HashSet<char>),
+    SymbolSet(HashSet<char>),
 }
 
 const SPECIAL_SYMBOLS: [char; 9] = ['*', '?', '\\', '/', '[', ']', '#', '<', '>'];
@@ -49,21 +49,21 @@ fn handle_set(set: &str) -> Option<WildcardTok> {
 }
 
 pub fn extract_from_brackets(pattern: &str) -> Option<WildcardTok> {
-	if pattern.is_empty() || !pattern.starts_with('[') || !pattern.ends_with(']') {
-		return None;
-	}
+    if pattern.is_empty() || !pattern.starts_with('[') || !pattern.ends_with(']') {
+	return None;
+    }
 
     let pattern = &pattern[1..pattern.len() - 1];
 
     if pattern.contains('|') {
-		let pattern: Vec<&str> = pattern.split('|').collect();
+        let pattern: Vec<&str> = pattern.split('|').collect();
 
-		if pattern.len() != 2 || pattern[0].chars().any(|c| !c.is_ascii_digit()) {
-			return None;
-		}
+	if pattern.len() != 2 || pattern[0].chars().any(|c| !c.is_ascii_digit()) {
+		return None;
+	}
 
-		let number = pattern[0].parse::<usize>().unwrap_or(0);
-		let keyword = pattern[1];
+	let number = pattern[0].parse::<usize>().unwrap_or(0);
+	let keyword = pattern[1];
 
         match_wild(keyword, number)
     } else {
@@ -78,7 +78,7 @@ pub fn compile_wildcard(pattern: &str) -> Result<Vec<WildcardTok>, String> {
     let mut idx = 0;
 
     while idx < pat_len {
-		let c = pattern.chars().nth(idx).unwrap();
+	let c = pattern.chars().nth(idx).unwrap();
 
         match c {
             '\\' => {
@@ -88,39 +88,39 @@ pub fn compile_wildcard(pattern: &str) -> Result<Vec<WildcardTok>, String> {
                     res.push(WildcardTok::Symbol(pattern.chars().nth(idx + 1).unwrap()));
                     idx += 1;
                 } else {
-					return Err(String::from("backslash incorrect use"));
-				}
+		    return Err(String::from("backslash incorrect use"));
+		}
             }
             '*' => res.push(WildcardTok::MultipleAny),
-			'?' => res.push(WildcardTok::SingleAny),
-			'[' => {
+	    '?' => res.push(WildcardTok::SingleAny),
+	    '[' => {
                 let pass_val = match pattern[idx..].find(']') {
                     Some(i) => i,
                     None => return Err(String::from("missing closing bracket")),
                 };
 				
-				res.push(match extract_from_brackets(&pattern[idx..idx + pass_val + 1]) {
+		res.push(match extract_from_brackets(&pattern[idx..idx + pass_val + 1]) {
                     Some(w) => w,
                     None => return Err(String::from("extract_from_brackets")),
                 });
 
                 idx += pass_val;
-			}
-			'<' =>  {
+	    }
+	   '<' =>  {
                 let closing_sym = match pattern[idx..].find('>') {
                     Some(i) => i,
                     None => return Err(String::from("missing closing bracket")),
                 };
 
-				res.push(match handle_set(&pattern[idx..]) {
-					Some(w) => w,
-					None => return Err(String::from("unknown error")),
-				});
+		res.push(match handle_set(&pattern[idx..]) {
+			Some(w) => w,
+			None => return Err(String::from("unknown error")),
+		});
 
                 idx = closing_sym;
-			}
-			'#' => res.push(WildcardTok::Digit),
-			_ => res.push(WildcardTok::Symbol(c)),
+	    }
+	    '#' => res.push(WildcardTok::Digit),
+             _ => res.push(WildcardTok::Symbol(c)),
         }
 
         idx += 1;
