@@ -34,13 +34,13 @@ fn match_wild(pattern: &str, num: usize) -> Option<WildcardTok> {
  
 fn handle_set(set: &str) -> Option<WildcardTok> {
 	if set.is_empty() || !set.starts_with('<') || !set.ends_with('>') {
-		return None;
+	    return None;
 	} 
 
 	let symbols = &set[1..set.len() - 1];
 
 	if symbols.is_empty() {
-		return None;
+	    return None;
 	}
 
 	let symbol_set: HashSet<char> = symbols.chars().collect();
@@ -59,7 +59,7 @@ pub fn extract_from_brackets(pattern: &str) -> Option<WildcardTok> {
         let pattern: Vec<&str> = pattern.split('|').collect();
 
 	if pattern.len() != 2 || pattern[0].chars().any(|c| !c.is_ascii_digit()) {
-		return None;
+	    return None;
 	}
 
 	let number = pattern[0].parse::<usize>().unwrap_or(0);
