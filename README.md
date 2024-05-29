@@ -6,7 +6,7 @@ pattern formats supported:
 '#' - matches a digit
 "[n|upcase or lowcase]" - matches upcase or lowcase letter n times
 "[upcase or lowcase]" = matches upcase or lowcase letter single time
-"'<'set of symbols'>'" - matches a set of symbols
+"'<'set of symbols'>'" - matches a set of symbols 
 
 Usage: cargo run <PATTERN> "'<'FILENAME or DIRECTORY NAME>"...
  
