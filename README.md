@@ -1,0 +1,1 @@
+Wildcard Grep is a simplified version of the classic grep command-line tool, written in Rust. It allows you to search for a specified pattern in a file and displays the lines that contain the pattern.
