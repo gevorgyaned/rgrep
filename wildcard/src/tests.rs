@@ -130,4 +130,3 @@ mod additional_tests {
 		assert_eq!(compile_wildcard("*??a[lowcase]#").unwrap(), vec![WildcardTok::MultipleAny, WildcardTok::SingleAny,WildcardTok::SingleAny, WildcardTok::Symbol('a'), WildcardTok::LowerSymbol(None), WildcardTok::Digit]);
 	}
 }
-

@@ -23,14 +23,15 @@ impl fmt::Display for Args {
 fn main() -> io::Result<()> {
     let args = Args::parse();
 
-    let file_names = args.filename;
-    
-    let matcher = Matcher::build(file_names, args.wildcard);
+    let filenames = args.filename;
 
-    match matcher.execute() {
+    let macther = Matcher::build(filenames, args.wildcard);
+
+    match macther.execute() {
         Ok(_) => (),
         Err(err) => eprintln!("{}", err),
     };
+
 
     Ok(())
 }

@@ -13,7 +13,7 @@ pub enum WildcardTok {
 	SymbolSet(HashSet<char>),
 }
 
-const SPECIAL_SYMBOLS: [char; 9] = ['*', '?', '\\', '/', '[', ']', '#', '<', '>'];
+pub const SPECIAL_SYMBOLS: [char; 9] = ['*', '?', '\\', '/', '[', ']', '#', '<', '>'];
 
 const LOWER: &str = "lowcase";
 const HIGHER: &str = "upcase";
@@ -161,7 +161,7 @@ pub fn is_match(s: &str, pattern: &str) -> bool {
                     dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1] == *c;
                 }
                 WildcardTok::Digit => {
-                    dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1].is_digit(10);
+                    dp[i][j] = dp[i - 1][j - 1] && s_chars[i - 1].is_ascii_digit();
                 }
                 WildcardTok::SymbolSet(set) => {
                     dp[i][j] = dp[i - 1][j - 1] && set.contains(&s_chars[i - 1]);
